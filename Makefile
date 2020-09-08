@@ -43,10 +43,13 @@ endif
 
 # Check permission issue, must available to ubuntu
 ifneq ($(shell stat -c '%U' /.git/HEAD),$(USER))
-  $(warning WARN: Lab should **NOT** belong to 'root', please change their owner in host: 'sudo chown $$USER:$$USER -R /path/to/cloud-lab')
+  $(warning WARN: Lab should **NOT** belong to 'root', please change their owner in host: 'sudo chown $$USER:$$USER -R /path/to/cloud-lab/{*,.git}')
   $(warning WARN: Cancel this warning via: 'export WARN_ON_USER=0')
 endif
 endif # Warning on user
+
+# Detect system version of docker image
+OS := $(shell lsb_release -c | awk '{printf $$2}')
 
 # Current variables: board, plugin, module
 BOARD_CONFIG  := $(shell cat .board_config 2>/dev/null)
@@ -214,8 +217,12 @@ _stamp = $(3)/.stamp_$(1)-$(2)
 ## A=$(call __v,GCC,LINUX), 4.3
 ## B=$(call _v,GCC,LINUX),  4.4 if LINUX is not v2.6.35
 
+define ___v
+$($(1)[$(2)_$($(2))$(if $($(3)),$(comma)$(3)_$($(3)))])
+endef
+
 define __v
-$($(1)[$(2)_$($(2))])
+$(if $($(3)),$(if $(call ___v,$1,$2,$3),$(call ___v,$1,$2,$3),$(call ___v,$1,$2)),$(call ___v,$1,$2))
 endef
 
 define _v
@@ -224,13 +231,34 @@ endef
 #$(shell a="$(call __v,$1,$2)"; if [ -n "$$a" ]; then echo "$$a"; else echo $($1); fi)
 
 define __vs
- ifneq ($$(call __v,$(1),$(2)),)
-  $(3) $(1) := $$(call __v,$(1),$(2))
+ ifneq ($$(call __v,$(1),$(2),$(3)),)
+   $(1) := $$(call __v,$(1),$(2),$(3))
+ endif
+endef
+
+define __vs_override
+ ifneq ($$(call __v,$(1),$(2),$(3)),)
+   override $(1) := $$(call __v,$(1),$(2),$(3))
  endif
 endef
 
 define _vs
  $(1) := $$(call _v,$(1),$(2))
+endef
+
+# Convert version string to version number, support 4 levels version string, like: v2.6.30.5
+define _v2v
+$(shell echo $(1) | tr -d '[a-zA-Z]' | awk -F"." '{ printf("%d\n",$$1*16777216 + $$2*65536 + $$3*256 + $$4);}')
+endef
+
+define _vsif
+ ifeq ($$(shell expr $(call _v2v,$($(3))) \$(4) $(call _v2v,$(5))),1)
+   $(1) := $(2)
+ endif
+endef
+
+define _any
+$(shell if [ $$(expr $(call _v2v,$($(1))) \$(2) $(call _v2v,$(3))) -eq 1 ]; then echo $($(1)); else echo NONE; fi)
 endef
 
 # $(BOARD_DIR)/Makefile.linux_$(LINUX)
@@ -279,18 +307,6 @@ $(call _bi,NET,Makefile)
 $(call _bvi,LINUX,Makefile)
 endef
 
-define fixup_arch
-ifneq ($$(KERNEL_SRC),)
-  ifneq ($$(_KERNEL_SRC),$$(KERNEL_SRC))
-    KERNEL_ABS_SRC := $$(KERNEL_SRC)
-  endif
-endif
-IS_ARCH = $$(shell cd $$(KERNEL_ABS_SRC); git show $$(call _v,LINUX,LINUX):arch/$$(ARCH)/boot >/dev/null 2>&1; echo $$$$?)
-ifneq ($$(IS_ARCH),0)
-  ARCH  := $$(XARCH)
-endif
-endef
-
 # include .labinit if exist
 $(eval $(call _ti,labinit))
 
@@ -311,6 +327,9 @@ endif
 $(eval $(call __vs,KERNEL_SRC,LINUX))
 $(eval $(call __vs,KERNEL_GIT,LINUX))
 
+$(eval $(call __vs,DTS,LINUX))
+$(eval $(call __vs,DTB,LINUX))
+
 #
 # Prefer new binaries to the prebuilt ones control
 #
@@ -328,9 +347,10 @@ $(eval $(call __vs,KERNEL_GIT,LINUX))
 
 define _pb
 ifneq ($$($(call _lc,$1)),)
-  ifeq ($$($(call _lc,$1))),1)
+  ifeq ($$(filter $$($(call _lc,$1)),1 new build),$$($(call _lc,$1)))
     PB$1 := 0
-  else
+  endif
+  ifeq ($$(filter $$($(call _lc,$1)),0 old pre prebuild prebuilt),$$($(call _lc,$1)))
     PB$1 := 1
   endif
 endif
@@ -340,14 +360,15 @@ endef
 define _lpb
 __$(1) := $(subst x,,$(firstword $(foreach i,K U D R Q,$(findstring x$i,x$(call _uc,$(1))))))
 ifneq ($$($1),)
-  ifeq ($$($1),1)
+  ifeq ($$(filter $$($1),1 new build),$$($1))
     PB$$(__$(1)) := 0
-  else
+  endif
+  ifeq ($$(filter $$($1),0 old pre prebuild prebuilt),$$($1))
     PB$$(__$(1)) := 1
   endif
 endif
 ifneq ($(BUILD),)
-  ifeq ($(filter $(1),$(BUILD)),$(1))
+  ifeq ($$(filter $(1),$(BUILD)),$(1))
     PB$$(__$(1)) := 0
   endif
 endif
@@ -456,8 +477,8 @@ endif # common commands
 
 define genbuildenv
 
-GCC_$(2) = $$(call __v,GCC,$(2))
-CCORI_$(2) = $$(call __v,CCORI,$(2))
+GCC_$(2) = $$(call __v,GCC,$(2),$(3))
+CCORI_$(2) = $$(call __v,CCORI,$(2),$(3))
 
 ifeq ($$(findstring $(1),$$(MAKECMDGOALS)),$(1))
   ifneq ($$(CCORI_$(2))$$(GCC_$(2)),)
@@ -465,14 +486,14 @@ ifeq ($$(findstring $(1),$$(MAKECMDGOALS)),$(1))
       CCORI_$(2) := internal
       CCORI := internal
     else
-      $(eval $(call __vs,CCORI,$(2)))
+      $(eval $(call __vs,CCORI,$(2),$(3)))
     endif
     GCC_$(2)_SWITCH := 1
   endif
 endif
 
-HOST_GCC_$(2) = $$(call __v,HOST_GCC,$(2))
-HOST_CCORI_$(2) = $$(call __v,HOST_CCORI,$(2))
+HOST_GCC_$(2) = $$(call __v,HOST_GCC,$(2),$(3))
+HOST_CCORI_$(2) = $$(call __v,HOST_CCORI,$(2),$(3))
 
 ifeq ($$(findstring $(1),$$(MAKECMDGOALS)),$(1))
   ifneq ($$(HOST_CCORI_$(2))$$(HOST_GCC_$(2)),)
@@ -484,12 +505,20 @@ ifeq ($$(findstring $(1),$$(MAKECMDGOALS)),$(1))
 endif
 endef # genbuildenv
 
-$(eval $(call genbuildenv,kernel,LINUX))
-$(eval $(call genbuildenv,uboot,UBOOT))
-$(eval $(call genbuildenv,qemu,QEMU))
-$(eval $(call genbuildenv,root,BUILDROOT))
+# Customize toolchains for different docker images
+$(eval $(call __vs,CCORI,OS))
+$(eval $(call __vs,GCC,OS))
 
-include $(PREBUILT_TOOLCHAINS)/$(XARCH)/Makefile
+$(eval $(call genbuildenv,kernel,LINUX,OS))
+$(eval $(call genbuildenv,uboot,UBOOT,OS))
+$(eval $(call genbuildenv,qemu,QEMU,OS))
+$(eval $(call genbuildenv,root,BUILDROOT,OS))
+
+PREBUILT_TOOLCHAIN_MAKEFILE=$(PREBUILT_TOOLCHAINS)/$(XARCH)/Makefile
+
+ifeq ($(PREBUILT_TOOLCHAIN_MAKEFILE),$(wildcard $(PREBUILT_TOOLCHAIN_MAKEFILE)))
+  include $(PREBUILT_TOOLCHAIN_MAKEFILE)
+endif
 
 ifneq ($(GCC),)
   # Force using internal CCORI if GCC specified
@@ -527,7 +556,7 @@ define genverify
    endif
   endif
   # If Linux version specific qemu list defined, use it
-  $$(eval $$(call __vs,$(2)_LIST,$$(if $(3),$(3),LINUX),override))
+  $$(eval $$(call __vs_override,$(2)_LIST,$$(if $(3),$(3),LINUX)))
   ifneq ($$($(2)_LIST),)
     ifneq ($$(filter $$($2), $$($(2)_LIST)), $$($2))
       $$(if $(4),$$(eval $$(call $(4))))
@@ -544,7 +573,11 @@ define genverify
  ifneq ($$($(1)_SRC),)
    ifneq ($$(_$(1)_SRC), $$($(1)_SRC))
     _$(2) := $$(subst $$(shell basename $$($(1)_SRC))-,,$$($(2)))
-    $(1)_ABS_SRC := $$($(1)_SRC)
+    ifneq ($$(findstring $$(TOP_DIR),$$($(1)_SRC)),$$(TOP_DIR))
+      $(1)_ABS_SRC := $$(TOP_DIR)/$$($(1)_SRC)
+    else
+      $(1)_ABS_SRC := $$($(1)_SRC)
+    endif
    endif
  endif
 
@@ -588,6 +621,7 @@ $(eval $(call __vs,ROOTFS,LINUX))
 $(eval $(call __vs,BUILDROOT,LINUX))
 $(eval $(call __vs,UBOOT,LINUX))
 $(eval $(call __vs,QEMU,LINUX))
+$(eval $(call __vs,QTOOL,OS))
 
 _BIMAGE := $(BIMAGE)
 _KIMAGE := $(KIMAGE)
@@ -739,7 +773,7 @@ endif
 TOOLCHAIN ?= $(PREBUILT_TOOLCHAINS)/$(XARCH)
 
 # Parallel Compiling threads
-HOST_CPU_THREADS := $(shell grep -c processor /proc/cpuinfo)
+HOST_CPU_THREADS := $(shell nproc)
 JOBS ?= $(HOST_CPU_THREADS)
 
 # Emulator configurations
@@ -908,6 +942,13 @@ endif
 
 # TODO: buildroot defconfig for $ARCH
 
+# Allow use short ROOTDEV argument
+ifneq ($(ROOTDEV),)
+  ifneq ($(findstring /dev/,$(ROOTDEV)),/dev/)
+    override ROOTDEV := /dev/$(ROOTDEV)
+  endif
+endif
+
 # Verify rootdev argument
 #$(warning $(call genverify,ROOTDEV,ROOTDEV,,0))
 $(eval $(call genverify,ROOTDEV,ROOTDEV,,0))
@@ -1048,16 +1089,17 @@ VAR_FILTER   ?= ^[ [\./_a-z0-9-]* \]|^ *[\_a-zA-Z0-9]* *
 BTYPE    ?= ^_BASE|^_PLUGIN
 
 define getboardvars
-cat $(BOARD_MAKEFILE) | egrep -v "^ *\#|ifeq|ifneq|else|endif|include |call |eval " | egrep -v "_BASE|_PLUGIN"  | cut -d'?' -f1 | cut -d'=' -f1 | cut -d':' -f1 | tr -d ' '
+cat $(BOARD_MAKEFILE) | egrep -v "^ *\#|ifeq|ifneq|else|endif|include |call |eval " | egrep -v "_BASE|_PLUGIN"  | cut -d'?' -f1 | cut -d'=' -f1 | cut -d':' -f1 | cut -d'+' -f1 | tr -d ' '
 endef
 
 define showboardvars
 echo [ $(BOARD) ]:"\n" $(foreach v,$(or $(VAR),$(or $(1),$(shell $(call getboardvars)))),"    $(v) = $($(v)) \n") | tr -s '/' | egrep --colour=auto "$(VAR_FILTER)"
 endef
 
+BSP_CHECKOUT ?= bsp-checkout
 ifneq ($(BSP_ROOT),$(wildcard $(BSP_ROOT)))
   ifneq ($(app),default)
-    BOARD_DOWNLOAD := bsp-checkout
+    BOARD_DOWNLOAD := $(BSP_CHECKOUT)
   endif
 endif
 
@@ -1096,6 +1138,9 @@ board-config: board-save
 	$(foreach vs, $(MAKEOVERRIDES), tools/board/config.sh $(vs) $(BOARD_MAKEFILE) $(LINUX);)
 
 BOARD_LABCONFIG := $(BOARD_DIR)/.labconfig
+
+edit: local-edit
+config: local-config
 
 local-edit:
 	$(Q)touch $(BOARD_LABCONFIG)
@@ -1223,7 +1268,7 @@ $(C_PATH) make O=$(KERNEL_OUTPUT) -C $(KERNEL_SRC) ARCH=$(ARCH) LOADADDR=$(KRN_A
 endef
 
 define make_root
-$(C_PATH) make O=$(ROOT_OUTPUT) -C $(ROOT_SRC) V=$(V) -j$(JOBS) $(1)
+make O=$(ROOT_OUTPUT) -C $(ROOT_SRC) V=$(V) -j$(JOBS) $(1)
 endef
 
 # FIXME: ugly workaround for uboot, it share code between arm and arm64
@@ -1283,7 +1328,7 @@ ifeq ($(filter $(1),$(BUILD)),$(1))
 endif
 
 $(1)_bsp_childs := $(addprefix $(1)-,defconfig patch save saveconfig clone)
-$$($(1)_bsp_childs): bsp-checkout
+$$($(1)_bsp_childs): $(BSP_CHECKOUT)
 
 _boot: $$(boot_deps)
 
@@ -1382,7 +1427,7 @@ $$(call _stamp_$(1),source): $$(call _stamp_$(1),outdir)
 	@echo
 	$$(Q)if [ -e $$($(call _uc,$(1))_SRC_FULL)/.git ]; then \
 		[ -d $$($(call _uc,$(1))_SRC_FULL) ] && cd $$($(call _uc,$(1))_SRC_FULL);	\
-		if [ $$(shell [ -d $$($(call _uc,$(1))_SRC_FULL) ] && cd $$($(call _uc,$(1))_SRC_FULL) && git show --pretty=oneline -q $$(_$(call _uc,$(2))) >/dev/null 2>&1; echo $$$$?) -ne 0 ]; then \
+		if [ $$(shell [ -d $$($(call _uc,$(1))_SRC_FULL) ] && cd $$($(call _uc,$(1))_SRC_FULL) && git show --pretty=oneline -q $(or $$(__$(call _uc,$(2))),$$(_$(call _uc,$(2)))) >/dev/null 2>&1; echo $$$$?) -ne 0 ]; then \
 			$$($(call _uc,$(1))_GITADD); \
 			git fetch --tags $$(or $$($(call _uc,$(1))_GITREPO),origin); \
 		fi;	\
@@ -1611,6 +1656,9 @@ endef #genenvdeps
 BSP ?= FETCH_HEAD
 _BSP ?= $(BSP)
 
+# NOTE: No tag or version defined for bsp repo currently, -source target need fetch latest all the time 
+__BSP := notexist
+
 ifeq ($(_PLUGIN),1)
   BSP_SRC  := $(subst x$(TOP_DIR)/,,x$(PLUGIN_DIR))
 else
@@ -1651,18 +1699,6 @@ ifeq ($(findstring qemu,$(MAKECMDGOALS)),qemu)
  else
    # Use v2.12.0 by default
    QEMU_CONF ?= --disable-kvm
-
-   # FIXME: Disable qemu git update if already downloaded, this helps workaround submodule update issue
-   # please replace 'exit 1' with 'exit 0' for git-submodule-update in qemu/Makefile at the same time
-   #
-   #    export QEMU_UPDATE=0
-   #    make qemu-defconfig
-   #    sed -ie "s/exit 1)/exit 0)/g" qemu/Makefile
-   #    make qemu
-   #
-   ifeq ($(QEMU_UPDATE),0)
-     QEMU_CONF += --disable-git-update
-   endif
  endif
 endif
 
@@ -1687,7 +1723,10 @@ else
   QEMU_ARCH = $(XARCH)
 endif
 
-ifeq ($(QEMU_US), 1)
+# Allow use QEMU_USER_STATIC instead of QEMU_US
+QEMU_USER_STATIC ?= $(QEMU_US)
+
+ifeq ($(QEMU_USER_STATIC), 1)
   QEMU_TARGET ?= $(subst $(space),$(comma),$(addsuffix -linux-user,$(QEMU_ARCH)))
   QEMU_CONF   += --enable-linux-user --static
   QEMU_CONF   += --target-list=$(QEMU_TARGET)
@@ -1728,7 +1767,7 @@ endif
 
 QEMU_CONFIG_STATUS := config.log
 QEMU_PREFIX ?= $(PREBUILT_QEMU_DIR)
-QEMU_CONF_CMD := $(QEMU_ABS_SRC)/configure $(QEMU_CONF) --prefix=$(QEMU_PREFIX)
+QEMU_CONF_CMD := $(QEMU_ABS_SRC)/configure $(QEMU_CONF) --disable-werror --prefix=$(QEMU_PREFIX)
 qemu_make_help := cd $(QEMU_OUTPUT) && $(QEMU_CONF_CMD) --help && cd $(TOP_DIR)
 qemu_make_defconfig := $(Q)cd $(QEMU_OUTPUT) && $(QEMU_CONF_CMD) && cd $(TOP_DIR)
 
@@ -1749,7 +1788,12 @@ $(eval $(call genclone,qemu,qemu,Q))
 
 QT ?= $(x)
 
-_qemu:
+QEMU_UPDATE_GITMODULES=tools/qemu/update-submodules.sh
+
+_qemu_update_submodules:
+	$(QEMU_UPDATE_GITMODULES) $(QEMU_ABS_SRC)/.gitmodules
+
+_qemu: _qemu_update_submodules
 	$(call make_qemu,$(QT))
 
 # Toolchains targets
@@ -1838,7 +1882,7 @@ else
 	@echo Version: `/usr/bin/env PATH=$(CCPATH):$(PATH) $(CCPRE)gcc --version | head -1`
 endif
 ifeq ($(CCORI), internal)
-	@echo More...: `/usr/bin/update-alternatives --list $(CCPRE)gcc`
+	-@echo More...: `/usr/bin/update-alternatives --list $(CCPRE)gcc`
 endif
 	@echo
 
@@ -1881,7 +1925,7 @@ endif
 
 toolchain-switch:
 ifeq ($(UPDATE_GCC),1)
-	$(Q)update-alternatives --verbose --set $(CCPRE)gcc /usr/bin/$(CCPRE)gcc-$(GCC)
+	-$(Q)update-alternatives --verbose --set $(CCPRE)gcc /usr/bin/$(CCPRE)gcc-$(GCC)
 endif
 ifeq ($(UPDATE_CCORI),1)
 	@#echo OLD: `grep --color=always ^CCORI $(BOARD_MAKEFILE)`
@@ -2107,7 +2151,7 @@ endif
 internal_module := 0
 ifneq ($(M),)
   ifneq ($(M),)
-    override M := $(patsubst %/,%,$(M))
+    override M := $(subst //,/,$(patsubst %/,%,$(M)))
   endif
   ifeq ($(M),$(wildcard $(M)))
     ifeq ($(findstring $(KERNEL_MODULE_DIR),$(M)),$(KERNEL_MODULE_DIR))
@@ -2115,7 +2159,11 @@ ifneq ($(M),)
       M_PATH = $(subst $(KERNEL_MODULE_DIR)/,,$(M))
       internal_module := 1
     else
-      M_PATH ?= $(M)
+      ifeq ($(findstring $(TOP_DIR),$(M)),$(TOP_DIR))
+        M_PATH ?= $(M)
+      else
+        M_PATH ?= $(TOP_DIR)/$(M)
+      endif
     endif
   else
     ifeq ($(KERNEL_MODULE_DIR)/$(M),$(wildcard $(KERNEL_MODULE_DIR)/$(M)))
@@ -2177,7 +2225,7 @@ ifeq ($(one_module),1)
 endif   # ext_one_module = 1
 
 ifneq ($(M_PATH),)
-  M_PATH := $(patsubst %/,%,$(M_PATH))
+  M_PATH := $(subst //,/,$(patsubst %/,%,$(M_PATH)))
 endif
 
 SCRIPTS_KCONFIG := tools/kernel/config
@@ -2215,7 +2263,8 @@ kernel-modules-km: $(KERNEL_MODULES_DEPS)
 		make -s $(NPD) kernel-olddefconfig; \
 		$(call make_kernel); \
 	fi
-	$(call make_kernel,$(MODULE_PREPARE))
+	# M variable can not be set for modules_prepare target
+	$(call make_kernel,$(MODULE_PREPARE) M=)
 	$(Q)if [ -f $(KERNEL_SRC)/scripts/Makefile.modbuiltin ]; then \
 		$(call make_kernel,$(if $(m),$(m).ko,modules) $(KM)); \
 	else	\
@@ -2853,7 +2902,7 @@ endif
 CMDLINE :=
 
 # Init route and ip for guest
-ROUTE := $(shell ip address show br0 | grep "inet " | sed -e "s%.*inet \([0-9\.]*\)/[0-9]* .*%\1%g")
+ROUTE := $(shell ifconfig br0 | grep 'inet ' | tr -d -c '^[0-9. ]' | awk '{print $$1}')
 TMP   := $(shell bash -c 'echo $$(($$RANDOM%230+11))')
 IP    := $(basename $(ROUTE)).$(TMP)
 
@@ -2863,6 +2912,11 @@ CMDLINE += route=$(ROUTE)
 IFACE   ?= eth0
 CMDLINE += iface=$(IFACE)
 
+# New version of rpc.nfsd in nfs-kernel-server not support old nfs version 2, force using newer nfsver 3
+ifneq ($(OS), trusty)
+  NFSROOT_EXTRA ?= ,nolock,v3
+endif
+
 ifeq ($(ROOTDEV),/dev/nfs)
   ifneq ($(shell lsmod | grep -q ^nfsd; echo $$?),0)
     $(error ERR: 'nfsd' module not inserted, please follow the steps to start nfs service: 1. insert nfsd module in host: 'modprobe nfsd', 2. restart nfs service in docker: '/configs/tools/restart-net-servers.sh')
@@ -2871,7 +2925,7 @@ ifeq ($(ROOTDEV),/dev/nfs)
   # Must specify iface while multiple exist, which happens on ls2k board and triggers not supported dhcp
   IP_FULL  ?= $(IP):$(ROUTE):$(ROUTE):255.255.255.0:linux-lab:$(IFACE):off
   IP_SHORT ?= $(IP)::$(ROUTE):::$(IFACE):off
-  CMDLINE += nfsroot=$(ROUTE):$(ROOTDIR) rw ip=$(IP_SHORT)
+  CMDLINE += nfsroot=$(ROUTE):$(ROOTDIR)$(NFSROOT_EXTRA) rw ip=$(IP_SHORT)
 endif
 
 ifeq ($(DEV_TYPE),hd)
@@ -2894,7 +2948,7 @@ CMDLINE += $(call _v,XKCLI,LINUX)
 G ?= 0
 
 # Force using curses based graphic mode for bash/ssh login
-ifneq ($(shell env | grep -q ^XDG; echo $$?), 0)
+ifneq ($(shell env | grep -q ^DISPLAY; echo $$?), 0)
   XTERM := null
 
   ifeq ($(G), 1)
@@ -2951,6 +3005,11 @@ endif
 
 # Force running git submodule commands
 # FIXME: To test automatically, must checkout with -f, otherwise, will stop with failures.
+ifeq ($(findstring force-,$(MAKECMDGOALS)),force-)
+  ifeq ($(findstring -checkout,$(MAKECMDGOALS)),-checkout)
+    FORCE_CHECKOUT ?= 1
+  endif
+endif
 ifeq ($(FORCE_CHECKOUT),1)
   GIT_CHECKOUT_FORCE ?= -f
 endif
@@ -3250,7 +3309,10 @@ raw-test: $(TEST_PREPARE) boot-init boot-test boot-finish FORCE
 PHONY += raw-test boot-test
 
 # Allow to disable feature-init
-FEATURE_INIT ?= 1
+
+TEST_INIT ?= 1
+TI ?= $(TEST_INIT)
+FEATURE_INIT ?= $(TI)
 FI ?= $(FEATURE_INIT)
 
 kernel-init: kernel-config kernel-olddefconfig
@@ -3321,18 +3383,18 @@ ifeq ($(DEBUG),uboot)
 else
   GDB_CMD      ?= $(GDB) $(VMLINUX)
   GDB_INIT     ?= $(GDBINIT_DIR)/$(GDB_INIT_KERNEL)
-  DEBUG_DPES   := kernel-build
+  DEBUG_DEPS   := kernel-build
 endif
 
 HOME_GDB_INIT ?= $(HOME)/.gdbinit
 # Force run as ubuntu to avoid permission issue of .gdbinit and ~/.gdbinit
 GDB_USER     ?= $(USER)
 
-# Xterm: lxterminal, terminator
+# Xterm: terminator
 ifeq ($(XTERM), null)
   XTERM_STATUS := 1
 else
-  XTERM ?= $(shell tools/xterm.sh lxterminal)
+  XTERM ?= $(shell tools/xterm.sh terminator)
   # Testing should use non-interactive mode, otherwise, enable interactive.
   ifneq ($(TEST),)
     XTERM_CMD    ?= sudo -u $(GDB_USER) /bin/bash -c "$(GDB_CMD)"
@@ -3390,7 +3452,7 @@ PHONY += boot-test _boot
 
 # Show the variables
 ifeq ($(filter env-dump,$(MAKECMDGOALS)),env-dump)
-VARS := $(shell cat $(BOARD_MAKEFILE) | egrep -v "^ *\#|ifeq|ifneq|else|endif|include"| cut -d'?' -f1 | cut -d'=' -f1 | cut -d':' -f1 | tr -d ' ')
+VARS := $(shell cat $(BOARD_MAKEFILE) | egrep -v "^ *\#|ifeq|ifneq|else|endif|include"| cut -d'?' -f1 | cut -d'=' -f1 | cut -d':' -f1 | cut -d'+' -f1 | tr -d ' ')
 VARS += PBK PBR PBD PBQ PBU
 VARS += BOARD FEATURE TFTPBOOT
 VARS += ROOTDIR ROOT_SRC ROOT_OUTPUT ROOT_GIT

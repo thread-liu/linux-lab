@@ -1,5 +1,5 @@
 <!-- metadata start --><!--
-% Linux Lab v0.4 中文手册
+% Linux Lab v0.5-rc3 中文手册
 % [泰晓科技 | Tinylab.org](http://tinylab.org)
 % \today
 --><!-- metadata end -->
@@ -33,10 +33,11 @@
     - [2.1 软硬件要求](#21-软硬件要求)
     - [2.2 安装 Docker](#22-安装-docker)
     - [2.3 选择工作目录](#23-选择工作目录)
-    - [2.4 下载实验环境](#24-下载实验环境)
-    - [2.5 运行并登录 Linux Lab](#25-运行并登录-linux-lab)
-    - [2.6 更新实验环境并重新运行](#26-更新实验环境并重新运行)
-    - [2.7 快速上手：启动一个开发板](#27-快速上手：启动一个开发板)
+    - [2.4 切换到普通用户帐号](#24-切换到普通用户帐号)
+    - [2.5 下载实验环境](#25-下载实验环境)
+    - [2.6 运行并登录 Linux Lab](#26-运行并登录-linux-lab)
+    - [2.7 更新实验环境并重新运行](#27-更新实验环境并重新运行)
+    - [2.8 快速上手：启动一个开发板](#28-快速上手：启动一个开发板)
 - [3. Linux Lab 入门](#3-linux-lab-入门)
     - [3.1 使用开发板](#31-使用开发板)
        - [3.1.1 列出支持的开发板](#311-列出支持的开发板)
@@ -60,6 +61,7 @@
        - [4.1.1 非交互方式配置](#411-非交互方式配置)
        - [4.1.2 使用内核模块](#412-使用内核模块)
        - [4.1.3 使用内核特性](#413-使用内核特性)
+       - [4.1.4 新建开发分支](#414-新建开发分支)
     - [4.2 Uboot 引导程序](#42-uboot-引导程序)
     - [4.3 Qemu 模拟器](#43-qemu-模拟器)
     - [4.4 Toolchain 工具链](#44-toolchain-工具链)
@@ -111,6 +113,7 @@
        - [6.3.8 Web 界面无响应](#638-web-界面无响应)
        - [6.3.9 登录 WEB 界面时超时或报错](#639-登录-web-界面时超时或报错)
        - [6.3.10 Ubuntu Snap 问题](#6310-ubuntu-snap-问题)
+       - [6.3.11 如何退出 VNC 客户端全屏模式](#6311-如何退出-vnc-客户端全屏模式)
     - [6.4 Linux Lab 相关](#64-linux-lab-相关)
        - [6.4.1 No working init found](#641-no-working-init-found)
        - [6.4.2 linux/compiler-gcc7.h: No such file or directory](#642-linuxcompiler-gcc7h-no-such-file-or-directory)
@@ -187,9 +190,9 @@ Linux Lab 是一个开源软件，不提供任何保证，请自行承担使用�
 |3   | 预置组件   | 提供上述组件的预先编译版本，并按开发板分类存放，可即时下载使用                       |
 |4   | 根文件系统 | 支持 initrd，harddisk，mmc 和 nfs; ARM 架构提供 Debian 系统                          |
 |5   | Docker     | 交叉工具链已预先安装，还可灵活配置并下载外部交叉工具链                               |
-|6   | 灵活访问   | 支持通过本地或网络访问，支持 bash, vnc, web ssh, web vnc                             |
+|6   | 灵活访问   | 支持通过本地或网络访问，支持 bash, ssh, vnc, web ssh, web vnc                        |
 |7   | 网络       | 内置桥接网络支持，每个开发板都支持网络（Raspi3 是唯一例外）                          |
-|8   | 启动       | 支持串口、Curses（用于 `bash` 访问）和图形化方式启动                                 |
+|8   | 启动       | 支持串口、Curses（用于 `bash/ssh` 访问）和图形化方式启动                             |
 |9   | 测试       | 支持通过 `make test` 命令对目标板进行自动化测试                                      |
 |10  | 调试       | 可通过 `make debug` 命令对目标板进行调试                                             |
 
@@ -228,7 +231,7 @@ Linux Lab 是一个开源软件，不提供任何保证，请自行承担使用�
 
 ### 1.6.2 v0.2 @ 2019.10.30
 
-[v0.2](http://tinylab.org/linux-lab-v02/) 新增原生 Windows 支持、新增龙芯全系支持、新增多个平台外置交叉编译器支持、新增实时 RT 支持、新增 host 侧免 root 支持等，并首次被[某线上课程](https://w.url.cn/s/AMcKZ3a)全程采用。
+[v0.2](http://tinylab.org/linux-lab-v02/) 新增原生 Windows 支持、新增龙芯全系支持、新增多个平台外置交叉编译器支持、新增实时 RT 支持、新增 host 侧免 root 支持等，并首次被某线上课程全程采用。
 
 * [v0.2 rc3](http://tinylab.org/linux-lab-v0.2-rc3/)
     * 新增原生 Windows 支持，仅需 Docker，无需安装 Virtualbox 或 Vmware
@@ -287,12 +290,17 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 
 另外，为了避免走弯路，这里提供了一份验证过的操作系统列表，方便大家参考：
 
-| 操作系统   | 系统&内核版本    | Docker 版本    | 其他                    |
-|------------|------------------|----------------|-------------------------|
-| Ubuntu     | 16.04 + 4.4      | 18.09.4        | terminator              |
-| Ubuntu     | 18.04 + 5.0/4.15 | 18.09.4        | 已知 Linux v5.3 有 Bug  |
+| 操作系统   | 系统版本            | Docker 版本    | 内核版本
+|------------|---------------------|----------------|-----------------------------
+| Ubuntu     | 16.04, 18.04, 20.04 | 18.09.4        | Linux 4.15, 5.0, 5.3, 5.4
+| Debian     | bullseye            | 19.03.7        | Linux 5.4.42
+| Arch Linux |                     | 19.03.11       | Linux 5.4.50, 5.7.4
+| CentOS     | 7.6, 7.7            | 19.03.8        | Linux 3.10, 5.2.9
+| Deepin     | 15.11               | 18.09.6        | Linux 4.15
+| Mac OS X   | 10.15.5             | 19.03.8        | Darwin 19.5.0
+| Windows    | 10 PRO, WSL2        | 19.03.8        | MINGW64_NT-10.0-17134
 
-也有同学在 CentOS，Windows 10，Mac OSX 下成功运行了 Linux Lab，欢迎查看其他同学 [成功运行过 Linux Lab 的系统](https://gitee.com/tinylab/linux-lab/issues/I1FZBJ)，并分享你的情况，例如：
+请查看其他同学 [成功运行过 Linux Lab 的系统](https://gitee.com/tinylab/linux-lab/issues/I1FZBJ)，并分享你的情况，例如：
 
     $ tools/docker/env.sh
     System: Ubuntu 16.04.6 LTS
@@ -327,9 +335,15 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 **Ubuntu 用户安装手册**
   - doc/install/ubuntu-docker.md
 
+**Arch 用户安装手册**
+  - doc/install/arch-docker.md
+
+**Manjaro 用户安装手册**
+  - doc/install/manjaro-docker.md
+
 **Windows 用户须知**：
 
-  - 请参考 [Docker 官方文档](https://docs.docker.com)确保所用 Windows 版本支持 Docker
+  - 请参考 [Docker 官方文档](https://docs.docker.com) 确保所用 Windows 版本支持 Docker
 
   - Linux Lab 当前仅在 Git Bash 验证过，请务必配合 Git Bash 使用
       - 在安装完 [Git For Windows](https://git-scm.com/downloads) 后，可通过鼠标右键使用 “Git Bash Here”
@@ -353,22 +367,48 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 
 **Mac OSX**：
 
-    $ hdiutil -type SPARSE create -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
-    $ hdiutil attach -mountpoint ~/Documents/labspace -no-browse labspace.dmg
+    $ hdiutil create -type SPARSE -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
+    $ hdiutil attach -mountpoint ~/Documents/labspace -nobrowse labspace.dmg.sparseimage
     $ cd ~/Documents/labspace
 
 对于 Windows 用户，在安装完 [Git For Windows](https://git-scm.com/downloads) 后，可通过鼠标右键在选定的工作目录运行 “Git Bash Here”。
 
-## 2.4 下载实验环境
+## 2.4 切换到普通用户帐号
 
-以 Ubuntu 系统为例:
+下载代码前，请**务必**切到普通用户。Linux Lab 虽未禁用 `root` 帐号，但是不推荐使用 `root` 帐号，否则会有各种权限异常问题。
 
-下载 Cloud Lab，然后再选择 linux-lab 仓库
+查看当前用户 ID，`0` 表示 `root`，非零表示普通用户：
+
+    $ id -u `whoami`
+    1000
+
+如果当前为 `root`，需切到普通用户，请替换 `<USER>` 为自己的帐号名，下同：
+
+    # id -u `whoami`
+    0
+    # sudo -su <USER>
+
+如果目标机器上仅有 `root` 帐号，则**必须**新建一个普通用户帐号，假设取名为 `laber`：
+
+    $ sudo useradd --create-home --shell /bin/bash --user-group --groups adm,sudo laber
+    $ sudo passwd laber
+    $ sudo -su laber
+    $ whoami
+    laber
+
+## 2.5 下载实验环境
+
+下载 Cloud Lab，然后再选择 linux-lab 仓库：
 
     $ git clone https://gitee.com/tinylab/cloud-lab.git
     $ cd cloud-lab/ && tools/docker/choose linux-lab
 
-## 2.5 运行并登录 Linux Lab
+如果错误使用了 `root` 帐号来 clone 代码，下载后请**务必**切换到普通用户，并把属主改为普通用户：
+
+    $ sudo -su <USER>
+    $ sudo chown -R <USER>:<USER> -R cloud-lab/{*,.git}
+
+## 2.6 运行并登录 Linux Lab
 
 启动 Linux Lab 并根据控制台上打印的用户名和密码登录实验环境：
 
@@ -385,6 +425,7 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 其他登录方式：
 
     $ tools/docker/vnc
+    $ tools/docker/ssh
     $ tools/docker/webssh
 
 选择某种登陆方式：
@@ -397,6 +438,7 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 |   登录方法     |   描述             |  缺省用户        |  登录所在地          |
 |----------------|--------------------|------------------|----------------------|
 |   bash         | docker bash        |  ubuntu          | 本地主机             |
+|   ssh          | 普通 ssh           |  ubuntu          | 本地主机             |
 |   vnc          | 普通 桌面          |  ubuntu          | 本地主机+VNC client  |
 |   webvnc       | web 桌面           |  ubuntu          | 互联网在线即可       |
 |   webssh       | web ssh            |  ubuntu          | 互联网在线即可       |
@@ -409,11 +451,12 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 
 如果上述命令不能正常工作，请根据上述命令打印出来的 VNC 服务器信息，自行配置所用客户端。
 
-## 2.6 更新实验环境并重新运行
+## 2.7 更新实验环境并重新运行
 
 为了更新 Linux Lab 的版本，首先 **必须** 备份所有的本地修改，比如固化容器：
 
     $ tools/docker/commit linux-lab
+    $ git checkout -- configs/linux-lab/docker/name
 
 然后就可以执行更新了：
 
@@ -431,7 +474,11 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 
     $ tools/docker/rerun linux-lab
 
-## 2.7 快速上手：启动一个开发板
+## 2.8 快速上手：启动一个开发板
+
+进入实验环境, 切换目录:
+
+    $ cd /labs/linux-lab
 
 输入如下命令，在缺省的 `vexpress-a9` 开发板上启动预置的内核和根文件系统：
 
@@ -445,6 +492,11 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
 
     # uname -a
     Linux linux-lab 5.1.0 #3 SMP Thu May 30 08:44:37 UTC 2019 armv7l GNU/Linux
+    #
+    # poweroff
+    #
+
+键入 `poweroff` 即可关闭板子。部分开发板的关机功能不完善，可通过 `CTRL+a x` （依次按下 `CTRL` 和 `A`，同时释放，再单独按下 `x`）来退出 Qemu。当然，也可以另开一个控制台，通过 `kill` 或 `pkill` 退出 Qemu 进程。
 
 # 3. Linux Lab 入门
 
@@ -459,57 +511,106 @@ Linux Lab 是一套完备的嵌入式 Linux 开发环境，需要预留足够的
           ARCH     = arm64
           CPU     ?= cortex-a53
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0
           ROOTDEV ?= /dev/mmcblk0
     [ aarch64/virt ]:
           ARCH     = arm64
           CPU     ?= cortex-a57
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/sda /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
+    [ arm/mcimx6ul-evk ]:
+          ARCH     = arm
+          CPU     ?= cortex-a9
+          LINUX   ?= v5.4
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/mmcblk0
     [ arm/versatilepb ]:
           ARCH     = arm
           CPU     ?= arm926t
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/sda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ arm/vexpress-a9 ]:
           ARCH     = arm
           CPU     ?= cortex-a9
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ i386/pc ]:
           ARCH     = x86
-          CPU     ?= i686
+          CPU     ?= qemu32
           LINUX   ?= v5.1
+          ROOTDEV_LIST ?= /dev/hda /dev/ram0 /dev/nfs
+          ROOTDEV_LIST[LINUX_v2.6.34.9] ?= /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/hda
+    [ mips64el/ls2k ]:
+          ARCH     = mips
+          CPU     ?= mips64r2
+          LINUX   ?= loongnix-release-1903
+          LINUX[LINUX_loongnix-release-1903] := 04b98684
+          ROOTDEV_LIST := /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mips64el/ls3a7a ]:
+          ARCH     = mips
+          CPU     ?= mips64r2
+          LINUX   ?= loongnix-release-1903
+          LINUX[LINUX_loongnix-release-1903] := 04b98684
+          ROOTDEV_LIST ?= /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mipsel/ls1b ]:
+          ARCH     = mips
+          CPU     ?= mips32r2
+          LINUX   ?= v5.2
+          ROOTDEV_LIST ?= /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mipsel/ls232 ]:
+          ARCH     = mips
+          CPU     ?= mips32r2
+          LINUX   ?= v2.6.32-r190726
+          ROOTDEV_LIST := /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ mipsel/malta ]:
           ARCH     = mips
           CPU     ?= mips32r2
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ ppc/g3beige ]:
           ARCH     = powerpc
           CPU     ?= generic
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ riscv32/virt ]:
           ARCH     = riscv
           CPU     ?= any
           LINUX   ?= v5.0.13
+          ROOTDEV_LIST := /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
     [ riscv64/virt ]:
           ARCH     = riscv
           CPU     ?= any
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
     [ x86_64/pc ]:
           ARCH     = x86
-          CPU     ?= x86_64
+          CPU     ?= qemu64
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
+          ROOTDEV_LIST[LINUX_v3.2] := /dev/sda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
+    [ csky/virt ]:
+          ARCH     = csky
+          CPU     ?= ck810
+          LINUX   ?= v4.9.56
+          ROOTDEV ?= /dev/nfs
 
-如果只想查看特定的架构，插件或者模糊匹配，可以使用 `ARCH`，`PLUGIN`, `FILTER`:
+
+如果只想查看特定的架构，插件或者模糊匹配，可以使用 `ARCH`，`FILTER`:
 
     $ make list ARCH=arm
-    $ make list PLUGIN=loongson
     $ make list FILTER=virt
 
 更多用法:
@@ -547,6 +648,8 @@ Linux Lab 支持 “插件” 功能，允许在独立的 git 仓库中添加和
 
   - [中天微/C-Sky Linux](https://gitee.com/tinylab/csky)
   - [龙芯/Loongson Linux](https://gitee.com/loongsonlab/loongson)
+
+其中，Loongson 已经在 v5.0 合并进主线。
 
 ### 3.1.4 配置开发板
 
@@ -766,7 +869,7 @@ v0.3 以及之后的版本默认增加了目标依赖支持，所以，如果想
     $ make b=vexpress-a9 CONSOLE=ttyAMA0 boot G=1 LINUX=v5.1
     $ make b=raspi3 CONSOLE=ttyAMA0 XOPTS="-serial vc -serial vc" boot G=1 LINUX=v5.1
 
-基于 curses 图形方式启动（这么做适合采用 bash 的登录方式，但不是对所有开发板都有效，退出时需要使用 `ESC+2 quit` 或 `ALT+2 quit`）
+基于 curses 图形方式启动（这么做适合采用 bash/ssh 的登录方式，但不是对所有开发板都有效，退出时需要使用 `ESC+2 quit` 或 `ALT+2 quit`）
 
     $ make b=pc boot G=2 LINUX=v4.6.7
 
@@ -774,17 +877,17 @@ v0.3 以及之后的版本默认增加了目标依赖支持，所以，如果想
 
     $ make boot PBK=1 PBD=1 PBR=1
     or
-    $ make boot k=0 d=0 r=0
+    $ make boot k=old d=old r=old
     or
-    $ make boot kernel=0 dtb=0 root=0
+    $ make boot kernel=old dtb=old root=old
 
 使用新的内核、dtb 和 rootfs 启动：
 
     $ make boot PBK=0 PBD=0 PBR=0
     or
-    $ make boot k=1 d=1 r=1
+    $ make boot k=new d=new r=new
     or
-    $ make boot kernel=1 dtb=1 root=1
+    $ make boot kernel=new dtb=new root=new
 
 如果目标内核和 Uboot 不存在，重新编译一个之后再启动：
 
@@ -973,6 +1076,39 @@ Linux 内核提供了一个脚本 `scripts/config`，可用于非交互方式获
     $ make kernel
     $ make boot
 
+### 4.1.4 新建开发分支
+
+如果希望新建一个分支来做开发，那么可以参考如下步骤。
+
+首先在 `linux-stable` 或配置的其他 `KERNEL_SRC` 目录下基于某个内核版本新建一个 git 分支，假设历史版本是 v5.1：
+
+    $ cd linux-stable
+    $ git checkout -b linux-v5.1-dev v5.1
+
+然后通过 `kernel-clone` 从 Linux Lab 的 v5.1 克隆一份配置和相应目录：
+
+    $ make kernel-clone LINUX=v5.1 LINUX_NEW=linux-v5.1-dev
+
+之后就可以跟往常一样开发。
+
+如果基础版本不是 v5.1，那么可以从支持的版本中挑选一个比较接近的，以 `i386/pc` 为例：
+
+    $ make b=i386/pc list linux
+    v2.6.10 v2.6.11.12 v2.6.12.6 v2.6.21.5 v2.6.24.7 v2.6.34.9 v2.6.35.14 v2.6.36 v4.6.7 [v5.1] v5.2
+
+例如，想进行 v2.6.38 开发，可以考虑从 v2.6.36 来克隆，就近的配置更接近，出问题可能更少。
+
+    $ cd linux-stable
+    $ git checkout -b linux-v2.6.38-dev v2.6.38
+
+    $ make kernel-clone LINUX=v2.6.36 LINUX_NEW=linux-v2.6.38-dev
+
+开发过程中，请及时 commit，另外，请慎重使用如下命令，避免清除重要变更：
+
+* kernel-checkout, 检出某个指定版本，可能会覆盖掉当前修改
+* kernel-cleanup, 清理 git 仓库，可能会清理掉当前修改
+* kernel-clean, 清除历史编译记录，可能会自动执行上述 cleanup 动作
+
 ## 4.2 Uboot 引导程序
 
 从当前支持 U-boot 的板子：`versatilepb` 和 `vexpress-a9` 中选择一款：
@@ -1053,6 +1189,10 @@ qemu-ARCH-static 和 qemu-system-ARCH 是不能一起编译的，为了制作 qe
 
 在为新的内核实现移植时，如果使用 2.5 版本的 QEMU，Linux 5.0 在运行过程中会挂起，将 QEMU 升级到 2.12.0 后，问题消失。请在以后内核升级过程中注意相关的问题。
 
+Qemu 每次编译都会检查子仓库是否较新，但是下载通常没那么顺利。如果下载过一次子仓库以后不想再更新，可以通过如下方式禁止更新：
+
+    $ make qemu git_module_status=0
+
 ## 4.4 Toolchain 工具链
 
 Linux 内核主线的升级非常迅速，内置的工具链可能无法与其保持同步，为了减少维护上的压力，环境支持添加外部工具链。譬如 ARM64/virt, CCVER 和 CCPATH。
@@ -1098,15 +1238,17 @@ GCC 的版本可以分别在开发板特定的 Makefile 中针对 Linux, Uboot, 
 
 可以将文件系统提取出来在 Linux Lab 中使用：
 
+    (host)$ sudo apt-get install qemu-user-static
+
   ARM32/vexpress-a9 (用户名和密码均为 root):
 
-    $ tools/root/docker/extract.sh tinylab/arm32v7-ubuntu arm
-    $ make boot B=vexpress-a9 U=0 V=1 MEM=1024M ROOTDEV=/dev/nfs ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm32v7-ubuntu
+    (host)$ tools/root/docker/extract.sh tinylab/arm32v7-ubuntu arm
+    (lab )$ make boot B=vexpress-a9 U=0 V=1 MEM=1024M ROOTDEV=/dev/nfs ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm32v7-ubuntu
 
   ARM64/raspi3 (用户名和密码均为 root):
 
-    $ tools/root/docker/extract.sh tinylab/arm64v8-ubuntu arm
-    $ make boot B=raspi3 V=1 ROOTDEV=/dev/mmcblk0 ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm64v8-ubuntu
+    (host)$ tools/root/docker/extract.sh tinylab/arm64v8-ubuntu arm
+    (lab )$ make boot B=raspi3 V=1 ROOTDEV=/dev/mmcblk0 ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm64v8-ubuntu
 
 其他 Docker 中更多的根文件系统：
 
@@ -1236,9 +1378,9 @@ GCC 的版本可以分别在开发板特定的 Makefile 中针对 Linux, Uboot, 
 
     $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION'
 
-测试时不使用 feature-init （若非必须可以节省时间，FI=`FEATURE_INIT`）
+测试时不使用 feature-init （若非必须可以节省时间）
 
-    $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION' FI=0
+    $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION' TEST_INIT=0
     或
     $ make raw-test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION'
 
@@ -1610,7 +1752,7 @@ Linux Lab 的设计初衷是旨在通过利用 docker 技术使用预先安装�
 
 如果需要在不使用 `sudo` 的情况下执行 `tools` 目录下的命令，请确保将您的帐户添加到 docker 组并重新启动系统以使其生效：
 
-    $ sudo usermod -aG docker $USER
+    $ sudo usermod -aG docker <USER>
     $ newgrp docker
 
 ### 6.1.5 网络不通
@@ -1882,6 +2024,16 @@ Web 连接可能由于某些未知原因而挂起，导致 Linux Lab 有时可�
   * 无法将普通用户添加到 docker 用户组从而导致必须通过 root 用户使用 docker。
   * snap 服务会耗尽 `/dev/loop` 设备从而导致无法挂载文件系统。
 
+### 6.3.11 如何退出 VNC 客户端全屏模式
+
+在进入 VNC 客户端的全屏模式后，不同客户端软件在不同系统上的退出方式可能五花八门，甚至有些可能有 Bug，如果想切回主机，又没有便捷的方式，就会让人抓狂。
+
+这个时候，就推荐下面的方式，理论上，与 VNC 客户端软件无关，那就是在 Linux Lab 内杀掉 VNC 服务：
+
+    $ sudo pkill x11vnc
+
+由于 Linux Lab 会自动恢复掉线的 x11vnc 服务，所以完全不会影响下次登陆。
+
 ## 6.4 Linux Lab 相关
 
 ### 6.4.1 No working init found
@@ -1905,7 +2057,7 @@ Web 连接可能由于某些未知原因而挂起，导致 Linux Lab 有时可�
 这个错误会在执行 `make boot` 时报出，原因可能是由于克隆代码仓库时使用了 `root` 权限，解决方式是修改 `cloud-lab/` 目录的所有者：
 
     $ cd /path/to/cloud-lab
-    $ sudo chown $USER:$USER -R ./
+    $ sudo chown <USER>:<USER> -R ./{*,.git}
     $ tools/docker/rerun linux-lab
 
 为确保环境一致，目前 Linux Lab 仅支持通过普通用户使用，如果是用 `root` 用户下载的代码，请务必确保普通用户可以读写。
@@ -1915,7 +2067,7 @@ Web 连接可能由于某些未知原因而挂起，导致 Linux Lab 有时可�
 这是因为 MAC OSX 缺省的文件系统不区分大小写，请使用 `hdiutil` 或 `Disk Utility` 自己创建一个：
 
     $ hdiutil create -type SPARSE -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
-    $ hdiutil attach -mountpoint ~/Documents/labspace -no-browse labspace.dmg
+    $ hdiutil attach -mountpoint ~/Documents/labspace -nobrowse labspace.dmg.sparseimage
     $ cd ~/Documents/labspace
 
 ### 6.4.5 unable to create file: net/netfilter/xt_dscp.c

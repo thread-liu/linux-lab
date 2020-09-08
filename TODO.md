@@ -4,6 +4,7 @@
 ## V0.5
 
 * Merge loongson support
+* Fix up old kernel compiling in new docker image
 
 ## Future
 
@@ -33,3 +34,4 @@
   * Bootloaders
 * Clean up the 'shortcuts' support, current support differs from system
 * Use "-e TZ=Asia/Shanghai" to set time zone
+* Add new ubuntu 20.04 based docker image support

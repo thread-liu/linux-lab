@@ -12,7 +12,9 @@ QEMU    ?= v4.0.0
 QEMU_US ?= 0
 
 UBOOT   ?= v2019.10
-CCORI[UBOOT_v2019.10] := linaro
+
+CCORI[UBOOT_v2019.10,OS_trusty] = linaro
+CCORI[UBOOT_v2019.10,OS_focal]  = internal
 
 LINUX   ?= v5.1
 BUILDROOT?= 2019.11.1
@@ -88,7 +90,8 @@ HROOTFS ?= $(BSP_ROOT)/$(BUILDROOT)/rootfs.$(FSTYPE)
 UROOTFS := $(BSP_ROOT)/$(BUILDROOT)/rootfs.cpio.uboot
 XKCLI   ?= earlycon
 # Only for current v5.0.10 support
-QTOOL   ?= $(BSP_QEMU)/$(QEMU)/bin/qemu-system-$(XARCH)
+QTOOL[OS_trusty]   ?= $(BSP_QEMU)/$(QEMU)/bin/qemu-system-$(XARCH)
+QTOOL[OS_focal]    ?= $(BSP_QEMU)/$(QEMU)/bin/qemu-system-$(XARCH)
 
 # prebuilt toolchains, please download it if not internal via: make toolchain
 # Available origin: internal, bootlin, arm, linaro

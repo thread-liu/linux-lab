@@ -1,5 +1,5 @@
 <!-- metadata start --><!--
-% Linux Lab v0.4 Manual
+% Linux Lab v0.5-rc3 Manual
 % [TinyLab Community | Tinylab.org](http://tinylab.org)
 % \today
 --><!-- metadata end -->
@@ -26,10 +26,11 @@
     - [2.1 Hardware and Software Requirement](#21-hardware-and-software-requirement)
     - [2.2 Docker Installation](#22-docker-installation)
     - [2.3 Choose a working directory](#23-choose-a-working-directory)
-    - [2.4 Download the lab](#24-download-the-lab)
-    - [2.5 Run and login the lab](#25-run-and-login-the-lab)
-    - [2.6 Update and rerun the lab](#26-update-and-rerun-the-lab)
-    - [2.7 Quickstart: Boot a board](#27-quickstart-boot-a-board)
+    - [2.4 Switch to normal user](#24-switch-to-normal-user)
+    - [2.5 Download the lab](#25-download-the-lab)
+    - [2.6 Run and login the lab](#26-run-and-login-the-lab)
+    - [2.7 Update and rerun the lab](#27-update-and-rerun-the-lab)
+    - [2.8 Quickstart: Boot a board](#28-quickstart-boot-a-board)
 - [3. Linux Lab Kickstart](#3-linux-lab-kickstart)
     - [3.1 Using boards](#31-using-boards)
        - [3.1.1 List available boards](#311-list-available-boards)
@@ -53,6 +54,7 @@
        - [4.1.1 non-interactive configuration](#411-non-interactive-configuration)
        - [4.1.2 using kernel modules](#412-using-kernel-modules)
        - [4.1.3 using kernel features](#413-using-kernel-features)
+       - [4.1.3 Create new development branch](#413-create-new-development-branch)
     - [4.2 Using Uboot Bootloader](#42-using-uboot-bootloader)
     - [4.3 Using Qemu Emulator](#43-using-qemu-emulator)
     - [4.4 Using Toolchains](#44-using-toolchains)
@@ -104,6 +106,7 @@
        - [6.3.8 Linux Lab not response](#638-linux-lab-not-response)
        - [6.3.9 VNC login with failures](#639-vnc-login-with-failures)
        - [6.3.10 Ubuntu Snap Issues](#6310-ubuntu-snap-issues)
+       - [6.3.11 How to exit fullscreen mode of vnc clients](#6311-how-to-exit-fullscreen-mode-of-vnc-clients)
     - [6.4 Lab Issues](#64-lab-issues)
        - [6.4.1 No working init found](#641-no-working-init-found)
        - [6.4.2 linux/compiler-gcc7.h: No such file or directory](#642-linuxcompiler-gcc7h-no-such-file-or-directory)
@@ -181,7 +184,7 @@ Now, Linux Lab becomes an intergrated Linux learning, development and testing en
 |Docker    | Cross toolchains available in one command, external ones configurable
 |Acess     | Access via web browsers, available everywhere via web vnc or web ssh
 |Network   | Builtin bridge networking, every board has network (except Raspi3)
-|Boot      | Support serial port, curses (bash friendly) and graphic booting
+|Boot      | Support serial port, curses (bash/ssh friendly) and graphic booting
 |Testing   | Support automatic testing via `make test` target
 |Debugging | debuggable via `make debug` target
 
@@ -222,12 +225,17 @@ If often use, please increase disk storage to 100G~200G and memory storage to 8G
 
 And here is a list for verified operating systems for references:
 
-| OS         | System&Kernel Version | Docker version | Others                  |
-|------------|-----------------------|----------------|-------------------------|
-| Ubuntu     | 16.04 + 4.4           | 18.09.4        | terminator              |
-| Ubuntu     | 18.04 + 5.0/4.15      | 18.09.4        | Linux v5.3 has issue    |
+| OS         | System Version      | Docker Version | Kernel Version
+|------------|---------------------|----------------|-----------------------------
+| Ubuntu     | 16.04, 18.04, 20.04 | 18.09.4        | Linux 4.15, 5.0, 5.3, 5.4
+| Debian     | bullseye            | 19.03.7        | Linux 5.4.42
+| Arch Linux |                     | 19.03.11       | Linux 5.4.50, 5.7.4
+| CentOS     | 7.6, 7.7            | 19.03.8        | Linux 3.10, 5.2.9
+| Deepin     | 15.11               | 18.09.6        | Linux 4.15
+| Mac OS X   | 10.15.5             | 19.03.8        | Darwin 19.5.0
+| Windows    | 10 PRO, WSL2        | 19.03.8        | MINGW64_NT-10.0-17134
 
-Some engineers have run CentOS，Windows 10 and Mac OSX, welcome to take a look at [the systems running Linux Lab](https://github.com/tinyclub/linux-lab/issues/5) and share yours, for example:
+Welcome to take a look at [the systems running Linux Lab](https://github.com/tinyclub/linux-lab/issues/5) and share yours, for example:
 
     $ tools/docker/env.sh
     System: Ubuntu 16.04.6 LTS
@@ -262,6 +270,12 @@ The other issues, please read the [official docker docs](https://docs.docker.com
 **Notes for Ubuntu Users**
   - doc/install/ubuntu-docker.md
 
+**Notes for Arch Users**
+  - doc/install/arch-docker.md
+
+**Notes for Manjaro Users**
+  - doc/install/manjaro-docker.md
+
 **Notes for Windows Users**:
 
   - Please make sure your Windows version support docker: [Official Docker Documentation](https://docs.docker.com)
@@ -288,13 +302,36 @@ For Windows and Mac OSX, to compile Linux normally, please enable or create a ca
 
 **Mac OSX**:
 
-    $ hdiutil -type SPARSE create -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
-    $ hdiutil attach -mountpoint ~/Documents/labspace -no-browse labspace.dmg
+    $ hdiutil create -type SPARSE -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
+    $ hdiutil attach -mountpoint ~/Documents/labspace -nobrowse labspace.dmg.sparseimage
     $ cd ~/Documents/labspace
 
 **Notes**: Docker Images, Linux and Buildroot source code require many storage space, please reserve at least 50G for them.
 
-## 2.4 Download the lab
+## 2.4 Switch to normal user
+
+Before downloading Linux Lab, please **MUST** switch to normal user.
+
+Check who am i, `0` means root, non-zero means normal user:
+
+    $ id -u `whoami`
+    1000
+
+If current user is `root`, switch to a normal one:
+
+    # id -u `whoami`
+    0
+    # sudo -su <USER>
+
+If no normal user exists, create new:
+
+    $ sudo useradd --create-home --shell /bin/bash --user-group --groups adm,sudo laber
+    $ sudo passwd laber
+    $ sudo -su laber
+    $ whoami
+    laber
+
+## 2.5 Download the lab
 
 Use Ubuntu system as an example:
 
@@ -303,7 +340,12 @@ Download cloud lab framework, pull images and checkout linux-lab repository:
     $ git clone https://gitee.com/tinylab/cloud-lab.git
     $ cd cloud-lab/ && tools/docker/choose linux-lab
 
-## 2.5 Run and login the lab
+If cloned source code with `root` account, please **MUST** switch to normal user and change their owner:
+
+    $ sudo -su <USER>
+    $ sudo chown -R <USER>:<USER> -R cloud-lab/{*,.git}
+
+## 2.6 Run and login the lab
 
 Launch the lab and login with the user and password printed in the console:
 
@@ -320,6 +362,7 @@ Re-login the lab via web browser:
 The other login methods:
 
     $ tools/docker/vnc
+    $ tools/docker/ssh
     $ tools/docker/webssh
 
 Choose one of the method:
@@ -332,6 +375,7 @@ Summary of login methods:
 |   Login Method |   Description      |  Default User    |  Where               |
 |----------------|--------------------|------------------|----------------------|
 |   bash         | docker bash        |  ubuntu          | localhost            |
+|   ssh          | normal ssh         |  ubuntu          | localhost            |
 |   vnc          | normal vnc         |  ubuntu          | localhost+VNC client |
 |   webvnc       | web desktop        |  ubuntu          | anywhere via internet|
 |   webssh       | web ssh            |  ubuntu          | anywhere via internet|
@@ -344,11 +388,12 @@ If really want to use local vnc clients, please install a vnc client, for exampl
 
 If the above command not work normally, based on the information printed above, please configure the vnc client yourself.
 
-## 2.6 Update and rerun the lab
+## 2.7 Update and rerun the lab
 
 If want a newer version, we **must** back up any local changes at first, for example, save the container:
 
     $ tools/docker/commit linux-lab
+    $ git checkout -- configs/linux-lab/docker/name
 
 And then update everything:
 
@@ -366,7 +411,11 @@ Then rerurn linux lab:
 
     $ tools/docker/rerun linux-lab
 
-## 2.7 Quickstart: Boot a board
+## 2.8 Quickstart: Boot a board
+
+Get into the lab environment, switch directory:
+
+    $ cd /labs/linux-lab
 
 Issue the following command to boot the prebuilt kernel and rootfs on the default `vexpress-a9` board:
 
@@ -380,6 +429,11 @@ Login as `root` user without password(password is empty), just input `root` and 
 
     # uname -a
     Linux linux-lab 5.1.0 #3 SMP Thu May 30 08:44:37 UTC 2019 armv7l GNU/Linux
+    #
+    # poweroff
+    #
+
+Shutdown the board with the `poweroff` command. If some boards not support `poweroff`, please press `CTRL+a x`. Of course, open another terminal and issue kill or pkill command also can quit qemu.
 
 # 3. Linux Lab Kickstart
 
@@ -394,57 +448,105 @@ List builtin boards:
           ARCH     = arm64
           CPU     ?= cortex-a53
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0
           ROOTDEV ?= /dev/mmcblk0
     [ aarch64/virt ]:
           ARCH     = arm64
           CPU     ?= cortex-a57
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/sda /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
+    [ arm/mcimx6ul-evk ]:
+          ARCH     = arm
+          CPU     ?= cortex-a9
+          LINUX   ?= v5.4
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/mmcblk0
     [ arm/versatilepb ]:
           ARCH     = arm
           CPU     ?= arm926t
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/sda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ arm/vexpress-a9 ]:
           ARCH     = arm
           CPU     ?= cortex-a9
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/mmcblk0 /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ i386/pc ]:
           ARCH     = x86
-          CPU     ?= i686
+          CPU     ?= qemu32
           LINUX   ?= v5.1
+          ROOTDEV_LIST ?= /dev/hda /dev/ram0 /dev/nfs
+          ROOTDEV_LIST[LINUX_v2.6.34.9] ?= /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/hda
+    [ mips64el/ls2k ]:
+          ARCH     = mips
+          CPU     ?= mips64r2
+          LINUX   ?= loongnix-release-1903
+          LINUX[LINUX_loongnix-release-1903] := 04b98684
+          ROOTDEV_LIST := /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mips64el/ls3a7a ]:
+          ARCH     = mips
+          CPU     ?= mips64r2
+          LINUX   ?= loongnix-release-1903
+          LINUX[LINUX_loongnix-release-1903] := 04b98684
+          ROOTDEV_LIST ?= /dev/sda /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mipsel/ls1b ]:
+          ARCH     = mips
+          CPU     ?= mips32r2
+          LINUX   ?= v5.2
+          ROOTDEV_LIST ?= /dev/ram0 /dev/nfs
+          ROOTDEV ?= /dev/ram0
+    [ mipsel/ls232 ]:
+          ARCH     = mips
+          CPU     ?= mips32r2
+          LINUX   ?= v2.6.32-r190726
+          ROOTDEV_LIST := /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ mipsel/malta ]:
           ARCH     = mips
           CPU     ?= mips32r2
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ ppc/g3beige ]:
           ARCH     = powerpc
           CPU     ?= generic
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
     [ riscv32/virt ]:
           ARCH     = riscv
           CPU     ?= any
           LINUX   ?= v5.0.13
+          ROOTDEV_LIST := /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
     [ riscv64/virt ]:
           ARCH     = riscv
           CPU     ?= any
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/vda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/vda
     [ x86_64/pc ]:
           ARCH     = x86
-          CPU     ?= x86_64
+          CPU     ?= qemu64
           LINUX   ?= v5.1
+          ROOTDEV_LIST := /dev/hda /dev/ram0 /dev/nfs
+          ROOTDEV_LIST[LINUX_v3.2] := /dev/sda /dev/ram0 /dev/nfs
           ROOTDEV ?= /dev/ram0
+    [ csky/virt ]:
+          ARCH     = csky
+          CPU     ?= ck810
+          LINUX   ?= v4.9.56
+          ROOTDEV ?= /dev/nfs
 
-`ARCH`, `PLUGIN` and `FILTER` arguments are supported:
+`ARCH`, `FILTER` arguments are supported:
 
     $ make list ARCH=arm
-    $ make list PLUGIN=loongson
     $ make list FILTER=virt
 
 and more:
@@ -482,6 +584,8 @@ Here maintains the available plugins:
 
 - [C-Sky Linux](https://gitee.com/tinylab/csky)
 - [Loongson Linux](https://gitee.com/loongsonlab/loongson)
+
+The Loongson plugin has been merged into v5.0.
 
 ### 3.1.4 Configure boards
 
@@ -702,7 +806,7 @@ Boot with graphic (Exit with `CTRL+ALT+2 quit`):
     $ make b=vexpress-a9 CONSOLE=ttyAMA0 boot G=1 LINUX=v5.1
     $ make b=raspi3 CONSOLE=ttyAMA0 XOPTS="-serial vc -serial vc" boot G=1 LINUX=v5.1
 
-Boot with curses graphic (friendly to bash login, not work for all boards, exit with `ESC+2 quit` or `ALT+2 quit`):
+Boot with curses graphic (friendly to bash/ssh login, not work for all boards, exit with `ESC+2 quit` or `ALT+2 quit`):
 
     $ make b=pc boot G=2 LINUX=v4.6.7
 
@@ -710,17 +814,17 @@ Boot with PreBuilt Kernel, Dtb and Rootfs:
 
     $ make boot PBK=1 PBD=1 PBR=1
     or
-    $ make boot k=0 d=0 r=0
+    $ make boot k=old d=old r=old
     or
-    $ make boot kernel=0 dtb=0 root=0
+    $ make boot kernel=old dtb=old root=old
 
 Boot with new kernel, dtb and rootfs if exists:
 
     $ make boot PBK=0 PBD=0 PBR=0
     or
-    $ make boot k=1 d=1 r=1
+    $ make boot k=new d=new r=new
     or
-    $ make boot kernel=1 dtb=1 root=1
+    $ make boot kernel=new dtb=new root=new
 
 Boot with new kernel and uboot, build them if not exists:
 
@@ -916,6 +1020,36 @@ For `kft` feature in v2.6.36 for malta board:
     $ make kernel
     $ make boot
 
+### 4.1.3 Create new development branch
+
+If want to use a new development branch, please follow such steps:
+
+At first, Get into `linux-stable` or another directory specified with `KERNEL_SRC`, checkout a development branch from a specific version:
+
+    $ cd linux-stable
+    $ git checkout -b linux-v5.1-dev v5.1
+
+And then, clone the necessary configurations and directories for our new branch.
+
+    $ make kernel-clone LINUX=v5.1 LINUX_NEW=linux-v5.1-dev
+
+The v5.1 must be the already supported version, if not, please use the near one in supported list, for example, `i386/pc` board support such versions:
+
+    $ make b=i386/pc list linux
+    v2.6.10 v2.6.11.12 v2.6.12.6 v2.6.21.5 v2.6.24.7 v2.6.34.9 v2.6.35.14 v2.6.36 v4.6.7 [v5.1] v5.2
+
+If want to develop v2.6.38, please try to clone one from v2.6.36:
+
+    $ cd linux-stable
+    $ git checkout -b linux-v2.6.38-dev v2.6.38
+    $ make kernel-clone LINUX=v2.6.36 LINUX_NEW=linux-v2.6.38-dev
+
+In development, please commit asap, and also, please use such commands carefully to avoid destroy your important changes:
+
+* kernel-checkout, checkout a specified kernel version, may override your changes
+* kernel-cleanup, clean up git repository, may remove your changes
+* kernel-clean, clean building history, may run cleanup automatically
+
 ## 4.2 Using Uboot Bootloader
 
 Choose one of the tested boards: `versatilepb` and `vexpress-a9`.
@@ -1002,6 +1136,11 @@ While porting to newer kernel, Linux 5.0 hangs during boot on qemu 2.5, after
 compiling a newer qemu 2.12.0, no hang exists. please take notice of such issue
 in the future kernel upgrade.
 
+If already download qemu and its submodules and don't want to upadte the submodules,
+just skip it:
+
+    $ make qemu git_module_status=0
+
 ## 4.4 Using Toolchains
 
 The pace of Linux mainline is very fast, builtin toolchains can not keep up, to
@@ -1051,15 +1190,17 @@ Run it via docker directly:
 
 Extract it out and run in Linux Lab:
 
+    (host)$ sudo apt-get install qemu-user-static
+
   ARM32/vexpress-a9 (user: root, password: root):
 
-    $ tools/root/docker/extract.sh tinylab/arm32v7-ubuntu arm
-    $ make boot B=vexpress-a9 U=0 V=1 MEM=1024M ROOTDEV=/dev/nfs ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm32v7-ubuntu
+    (host)$ tools/root/docker/extract.sh tinylab/arm32v7-ubuntu arm
+    (lab )$ make boot B=vexpress-a9 U=0 V=1 MEM=1024M ROOTDEV=/dev/nfs ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm32v7-ubuntu
 
   ARM64/raspi3 (user: root, password: root):
 
-    $ tools/root/docker/extract.sh tinylab/arm64v8-ubuntu arm
-    $ make boot B=raspi3 V=1 ROOTDEV=/dev/mmcblk0 ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm64v8-ubuntu
+    (host)$ tools/root/docker/extract.sh tinylab/arm64v8-ubuntu arm
+    (lab )$ make boot B=raspi3 V=1 ROOTDEV=/dev/mmcblk0 ROOTFS=$PWD/prebuilt/fullroot/tmp/tinylab-arm64v8-ubuntu
 
 More rootfs from docker can be found:
 
@@ -1189,9 +1330,9 @@ Run test cases while testing internal kernel modules, pass kernel arguments:
 
     $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION'
 
-Run test without feature-init (save time if not necessary, FI=`FEATURE_INIT`):
+Run test without feature-init (save time if not necessary):
 
-    $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION' FI=0
+    $ make test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION' TEST_INIT=0
     Or
     $ make raw-test m=lkdtm lkdtm_args='cpoint_name=DIRECT cpoint_type=EXCEPTION'
 
@@ -1562,7 +1703,7 @@ Linux Lab is designed to use pre-installed environment with the docker technolog
 
 To use the tools under `tools` without sudo, please make sure add your account to the docker group and reboot your system to take effect:
 
-    $ sudo usermod -aG docker $USER
+    $ sudo usermod -aG docker <USER>
     $ newgrp docker
 
 ### 6.1.5 Network not work
@@ -1835,6 +1976,12 @@ Users report many snap issues, please use apt-get instead:
   * users can not be added to docker group and break non-root operation.
   * snap service exhausts the /dev/loop devices and break mount operation.
 
+### 6.3.11 How to exit fullscreen mode of vnc clients
+
+The easiest method is kill the VNC server in Linux Lab:
+
+    $ sudo pkill x11vnc
+
 ## 6.4 Lab Issues
 
 ### 6.4.1 No working init found
@@ -1858,7 +2005,7 @@ This means using a newer gcc than the one linux kernel version supported, the so
 This may happen at `make boot` while the repository is cloned with `root` user, please simply update the owner of `cloud-lab/` directory:
 
     $ cd /path/to/cloud-lab
-    $ sudo chown $USER:$USER -R ./
+    $ sudo chown <USER>:<USER> -R ./
     $ tools/docker/rerun linux-lab
 
 To make a consistent working environment, Linux Lab only support using as general user: 'ubuntu'.
@@ -1868,7 +2015,7 @@ To make a consistent working environment, Linux Lab only support using as genera
 This means MAC OSX not use Case sensitive filesystem, create one using `hdiutil` or `Disk Utility` yourself:
 
     $ hdiutil create -type SPARSE -size 60g -fs "Case-sensitive Journaled HFS+" -volname labspace labspace.dmg
-    $ hdiutil attach -mountpoint ~/Documents/labspace -no-browse labspace.dmg
+    $ hdiutil attach -mountpoint ~/Documents/labspace -nobrowse labspace.dmg.sparseimage
     $ cd ~/Documents/labspace
 
 

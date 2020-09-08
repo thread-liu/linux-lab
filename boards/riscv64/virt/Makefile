@@ -47,8 +47,9 @@ ROOTFS  ?= $(BSP_ROOT)/$(BUILDROOT)/rootfs.cpio.gz
 HROOTFS ?= $(BSP_ROOT)/$(BUILDROOT)/rootfs.$(FSTYPE)
 
 #XKCLI   ?= earlycon=sbi
-QTOOL   ?= $(BSP_QEMU)/$(QEMU)/bin/qemu-system-$(XARCH)
+QTOOL[OS_trusty]   ?= $(BSP_QEMU)/$(QEMU)/bin/qemu-system-$(XARCH)
 
 # external toolchain, please download it while: make toolchain
 # Available CCORI: bootlin, gnu-mcu-eclipse
-CCORI   ?= gnu-mcu-eclipse
+CCORI[OS_trusty]   ?= gnu-mcu-eclipse
+CCORI[OS_focal]    ?= internal

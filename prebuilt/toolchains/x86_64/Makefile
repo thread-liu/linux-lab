@@ -1,1 +1,1 @@
-CCVER ?= gcc-8
+../i386/Makefile
